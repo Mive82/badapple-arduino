@@ -1,0 +1,11 @@
+.vscode
+badapple
+halfframes
+video
+*.txt
+*.img
+*.bin
+
+*.o
+*.elf
+*.hex
