@@ -13,10 +13,14 @@ Ovaj projekt je port cijelog Bad apple videa na I2C OLED ekran spojen na Arduino
 - Video dekoder
 - SD* i OLED driveri
 
-`* SD kartica potrebna samo za Arduino`
+*SD kartica potrebna samo za Arduino
 # Kako koristiti
 **PREPORUKA:** Koristiti Linux (na Windowsima ništa nije testirano)  
 **DISCLAIMER:** Nisam odgovoran za nikakav gubitak podataka, flashajte na vlastitu odgovornost
+
+## Shema
+
+![Shema](images/badapple_bb.png)
 
 
 ### Ovisnosti
