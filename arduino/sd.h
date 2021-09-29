@@ -126,8 +126,6 @@
 #define SD_MAX_READ_ATTEMPTS 1563
 #define SD_R1_NO_ERROR(X) X < 0x02
 
-extern volatile uint8_t sd_type;
-
 // SPI functions
 void SPI_init(void);
 uint8_t SPI_transfer(uint8_t data);
@@ -154,7 +152,7 @@ uint8_t SD_sendApp();
 
 uint8_t SD_sendOpCond();
 
-uint8_t SD_init();
+uint8_t SD_init(uint8_t *sd_type);
 
 uint8_t SD_readSingleBlock(uint32_t addr, uint8_t *buf, uint8_t *token);
 

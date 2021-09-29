@@ -65,19 +65,17 @@ def writeHeader(directory, filenames, outFileName, loopNum: int):
     getDimensions(f"{directory}/{filenames[0]}")
     writebuffer = [width, height // 8]  # 2
     for byte in writebuffer:
-        outFile.write(byte.to_bytes(1, byteorder='big'))
+        outFile.write(byte.to_bytes(1, byteorder='little'))
         byte_num += 1
-    outFile.write(len(filenames).to_bytes(2, 'big'))  # 2
+    outFile.write(len(filenames).to_bytes(2, 'little'))  # 2
     byte_num += 2
     header_str = str.encode("baduino")
     outFile.write(header_str)
     byte_num += len(header_str)
-    outFile.write(loopNum.to_bytes(1, 'big'))
+    outFile.write(loopNum.to_bytes(1, 'little'))
     byte_num += 1
-    for i in range(510 - byte_num):
-        outFile.write((0).to_bytes(1, 'big'))
-    outFile.write(0xF0.to_bytes(1, 'big'))
-    outFile.write(0x0D.to_bytes(1, 'big'))
+    for i in range(512 - byte_num):
+        outFile.write((0).to_bytes(1, 'little'))
 
     return
 
@@ -151,7 +149,7 @@ if __name__ == "__main__":
 
     # Provjeravanje argumenata
     if len(argumenti) < 3:
-        print("Argumenti nisu dobri")
+        print("Argumenti nisu dobri\n ./enc.py <source directory> <output file name> [loop (1 ili 0, default 0)]")
         exit()
 
     if len(argumenti) < 4:

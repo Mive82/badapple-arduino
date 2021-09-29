@@ -22,7 +22,6 @@
 #include <util/twi.h> // I2C library
 
 extern volatile uint8_t i2c_address;
-extern volatile uint8_t received;
 
 void i2c_init(uint8_t add);
 

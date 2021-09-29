@@ -215,7 +215,7 @@ uint8_t SD_sendOpCond()
     return res1;
 }
 
-uint8_t SD_init()
+uint8_t SD_init(uint8_t *sd_type)
 {
     uint8_t res[5], cmdAttempts = 0;
 
@@ -273,11 +273,11 @@ uint8_t SD_init()
 
     if (CCS_VAL(res[1]))
     {
-        sd_type = SDHC;
+        *sd_type = SDHC;
     }
     else
     {
-        sd_type = SD2;
+        *sd_type = SD2;
     }
 
     return SD_SUCCESS;

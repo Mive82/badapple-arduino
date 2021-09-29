@@ -21,6 +21,7 @@
 #include <util/delay.h>
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
+#include <string.h>
 
 #include "serial.h"
 #include "sdimg.h"
@@ -28,17 +29,32 @@
 #include "oled.h"
 #include "sd.h"
 
-volatile uint8_t fail_state = 0;
-volatile uint16_t n_frames = 0;
-volatile uint16_t data_ptr = 0;
-volatile uint8_t sd_type = 0;
-volatile uint8_t done = 0;
-volatile uint8_t loop = 0;
+// Header, prvi dio prvih 512 bajtova
+typedef struct _header header;
+struct _header
+{
+    uint8_t h_width;
+    uint8_t h_height;
+    uint16_t h_frames;
+    uint8_t h_header_text[7];
+    uint8_t h_loop;
+};
+
+typedef struct _playbackinfo playbackinfo;
+struct _playbackinfo
+{
+    uint8_t v_width;
+    uint8_t v_height;
+    uint16_t v_frames;
+    uint8_t v_loop;
+    uint8_t v_sd_type;
+    uint8_t v_done;
+    uint8_t v_fail_state;
+};
 
 uint8_t res[5], token;
-uint8_t header_text[] = {0x62, 0x61, 0x64, 0x75, 0x69, 0x6E, 0x6F}; // "baduino"
 
-void error_image()
+void error_image(const uint8_t fail_state)
 {
     if (fail_state == 0)
     {
@@ -58,68 +74,81 @@ void error_image()
     }
 }
 
-void read_header()
+void check_sd(playbackinfo *videoInfo)
 {
-    if (done)
+    videoInfo->v_fail_state = 0;
+    if (SD_init(&(videoInfo->v_sd_type)) == SD_SUCCESS)
+    {
+        //uart_putstr("Success!\n");
+    }
+    else
+    {
+        //uart_putstr("No SD card\n");
+        videoInfo->v_fail_state = 1;
+    }
+    return;
+}
+
+void read_header(playbackinfo *videoInfo)
+{
+    if (videoInfo->v_done)
     {
         return;
     }
+
     res[0] = SD_readSingleBlock(0, frame_buffer, &token); // read first 512 bytes
+
     // parse header
     if (SD_R1_NO_ERROR(res[0]) && (token == 0xFE))
     {
-        // "baduino" in hex from offset 4
+        header v_header; // Inicijaliziraj header
+        memcpy(&v_header, &frame_buffer, sizeof(header));
+
+        uart_putstr("Looping: ");
+        uart_putint(v_header.h_loop);
+        uart_putstr("\nResolution: ");
+        uart_putint(v_header.h_width);
+        uart_putchar('x');
+        uart_putint(v_header.h_height * 8);
+        uart_putstr("\nFrames: ");
+        uart_putint(v_header.h_frames);
+        uart_putstr("\n\n");
+
+        uint8_t header_text[] = {0x62, 0x61, 0x64, 0x75, 0x69, 0x6E, 0x6F}; // "baduino"
+
+        // Invalid header string
         for (int i = 0; i < 7; i++)
         {
-
-            if (frame_buffer[i + 4] != header_text[i])
+            if (v_header.h_header_text[i] != header_text[i])
             {
-                //uart_putstr("Invalid file format\n");
-                fail_state = 3;
+                videoInfo->v_fail_state = 3;
                 return;
             }
         }
 
-        // 0xF00D on the last 2 bytes for shits and giggles
-        if (frame_buffer[510] != 0xF0 || frame_buffer[511] != 0x0D)
+        // Invalid resolution
+        if (v_header.h_width != 128 || v_header.h_height != 8)
         {
-            //uart_putstr("Invalid file format\n");
-            fail_state = 3;
+            videoInfo->v_fail_state = 3;
             return;
         }
 
-        // first 4 bytes - width in pixels, height in pages, no. of frames (2 bytes)
-        data_ptr++;
-        if (frame_buffer[0] != 128 || frame_buffer[1] != 8)
-        {
-            //uart_putstr("Invalid resolution\n");
-            fail_state = 3;
-            return;
-        }
-        n_frames = 0 | (frame_buffer[2] << 8);
-        n_frames |= frame_buffer[3];
-        loop = frame_buffer[11];
-        uart_putstr("Looping: ");
-        uart_putint(loop);
-        uart_putstr("\nResolution: ");
-        uart_putint(frame_buffer[0]);
-        uart_putchar('x');
-        uart_putint(frame_buffer[1] * 8);
-        uart_putstr("\nFrames: ");
-        uart_putint(n_frames);
-        uart_putstr("\n\n");
+        videoInfo->v_height = v_header.h_height;
+        videoInfo->v_width = v_header.h_width;
+        videoInfo->v_loop = v_header.h_loop;
+        videoInfo->v_frames = v_header.h_frames;
     }
     else
     {
         //UART_puts("Error reading sector\n");
-        fail_state = 2;
+        videoInfo->v_fail_state = 2;
         return;
     }
 }
 
-void read_frames()
+void read_frames(playbackinfo *videoInfo)
 {
-    if (done)
+    if (videoInfo->v_done)
     {
         return;
     }
@@ -127,7 +156,7 @@ void read_frames()
     do
     {
         // SD v2 uses byte offset (za ovo sam propisao krv)
-        if (sd_type == SD2)
+        if (videoInfo->v_sd_type == SD2)
         {
             res[0] = SD_startMultiBlockRead(512);
         }
@@ -138,7 +167,7 @@ void read_frames()
         }
 
         // Reading block data directly into the frame buffer
-        for (int i = 0; i < n_frames; i++)
+        for (int i = 0; i < videoInfo->v_frames; i++)
         {
             //res[0] = SD_readMultipleBlocks(frame_buffer, &token);
             SD_readMultipleBlocks(frame_buffer, &token);
@@ -150,40 +179,24 @@ void read_frames()
             else
             {
                 UART_puts("Error multireading sector\n");
-                fail_state = 2;
+                videoInfo->v_fail_state = 2;
                 return;
             }
         }
 
         SD_stopMultiBlockRead();
-    } while (loop);
-}
-
-void check_sd()
-{
-    fail_state = 0;
-    if (SD_init() == SD_SUCCESS)
-    {
-        //uart_putstr("Success!\n");
-    }
-    else
-    {
-        //uart_putstr("No SD card\n");
-        fail_state = 1;
-        return;
-    }
+    } while (videoInfo->v_loop);
 }
 
 int main()
 {
-    fail_state = 0;
     sei();
 
     i2c_init(0x3C); // hex 3C je adresa OLED-a
     display_init();
     horizonal_mode();
-    clear_display();
-    send_command(0xaf);
+    clear_display();    // Nuliraj oled vram
+    send_command(0xaf); // Upali oled
     _delay_ms(50);
 
     uart_init();
@@ -191,36 +204,39 @@ int main()
     SPI_init();
     _delay_ms(10);
 
+    playbackinfo videoInfo;
+    memset(&videoInfo, 0, sizeof(playbackinfo));
+
     // hotswap yaaaaay
     while (1)
     {
-        check_sd();
-        if (fail_state)
+        check_sd(&videoInfo);
+        if (videoInfo.v_fail_state)
         {
-            done = 0;
-            error_image();
+            videoInfo.v_done = 0;
+            error_image(videoInfo.v_fail_state);
             _delay_ms(100);
             continue;
         }
-        read_header();
+        read_header(&videoInfo);
 
-        if (fail_state)
+        if (videoInfo.v_fail_state)
         {
-            error_image();
+            error_image(videoInfo.v_fail_state);
             _delay_ms(100);
             continue;
         }
-        read_frames();
+        read_frames(&videoInfo);
 
-        if (fail_state)
+        if (videoInfo.v_fail_state)
         {
-            error_image();
+            error_image(videoInfo.v_fail_state);
             _delay_ms(2000);
             continue;
         }
         else
         {
-            done = 1;
+            videoInfo.v_done = 1;
         }
         _delay_ms(200);
     }

@@ -4,7 +4,7 @@ PROGRAMMER = arduino
 PORT	   = /dev/ttyUSB0
 BAUD       = 57600
 FILENAME   = main
-COMPILE    = avr-gcc -Wall -Wpedantic -Wshadow -Os -mmcu=$(DEVICE)
+COMPILE    = avr-gcc -pipe -Wall -Wpedantic -Wshadow -Os -mmcu=$(DEVICE)
 
 
 all: build upload clean
@@ -20,7 +20,7 @@ build:
 	avr-size --format=avr --mcu=$(DEVICE) $(FILENAME).elf
 
 upload:
-	avrdude -p $(DEVICE) -c $(PROGRAMMER) -P $(PORT) -b $(BAUD) -U flash:w:$(FILENAME).hex:i 
+	avrdude -p $(DEVICE) -c $(PROGRAMMER) -P $(PORT) -b $(BAUD) -D -U flash:w:$(FILENAME).hex:i 
 
 clean:
 	rm -f *.elf
